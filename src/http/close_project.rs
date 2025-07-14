@@ -55,7 +55,7 @@ async fn close_project_handler(
         return StatusCode::BAD_REQUEST;
     }
 
-    // 🔁 Start transaction
+    //Start transaction
     let mut tx = match db.pool.begin().await {
         Ok(tx) => tx,
         Err(e) => {
@@ -64,7 +64,7 @@ async fn close_project_handler(
         }
     };
 
-    // 1. Check if user exists
+
     let user_exists = sqlx::query_scalar::<_, Option<String>>(
         "SELECT wallet_address FROM escrow_users WHERE wallet_address = $1"
     )
@@ -78,7 +78,7 @@ async fn close_project_handler(
         return StatusCode::BAD_REQUEST;
     }
 
-    // 2. Fetch project
+
     let project_row = match sqlx::query(
         "SELECT owner_address, bounty_amount, closed_at FROM projects WHERE id = $1"
     )
@@ -106,7 +106,7 @@ async fn close_project_handler(
         return StatusCode::CONFLICT;
     }
 
-    // 3. Fetch disbursed amount
+   
     let disbursed: BigDecimal = match sqlx::query_scalar(
         "SELECT COALESCE(SUM(amount), 0) FROM escrow_transactions WHERE project_id = $1 AND type = 'bounty_allocation'"
     )
@@ -124,7 +124,6 @@ async fn close_project_handler(
     let total_bounty = bounty_amount.unwrap_or_else(BigDecimal::zero);
     let refund_amount = total_bounty.clone() - disbursed;
 
-    // 4. Refund if any
     if refund_amount > BigDecimal::zero() {
         let refund_query = r#"
             UPDATE escrow_users
@@ -143,7 +142,6 @@ async fn close_project_handler(
         }
     }
 
-    // 5. Mark project closed (skip `updated_at` if handled by DB)
     let close_query = r#"
         UPDATE projects
         SET closed_at = now()
@@ -159,7 +157,7 @@ async fn close_project_handler(
         return StatusCode::INTERNAL_SERVER_ERROR;
     }
 
-    // ✅ Commit transaction
+    //Commit transaction
     if let Err(err) = tx.commit().await {
         tracing::error!("Transaction commit failed: {:?}", err);
         return StatusCode::INTERNAL_SERVER_ERROR;
